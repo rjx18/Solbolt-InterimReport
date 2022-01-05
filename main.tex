@@ -1,0 +1,72 @@
+\documentclass[12pt,twoside]{report}
+
+% some definitions for the title page
+\newcommand{\reporttitle}{Solbolt -- a compiler explorer and smart contract gas usage tracker for Solidity}
+\newcommand{\reportauthor}{Richard Jun Wei Xiong}
+\newcommand{\supervisor}{Dr. William Knottenbelt}
+\newcommand{\reporttype}{MEng Interim Report}
+\newcommand{\degreetype}{MEng Computing (Artificial Intelligence and Machine Learning)} 
+
+% load some definitions and default packages
+\input{includes}
+
+% load some macros
+\input{notation}
+
+% load title page
+\begin{document}
+\input{titlepage}
+
+
+% page numbering etc.
+\pagenumbering{roman}
+\clearpage{\pagestyle{empty}\cleardoublepage}
+\setcounter{page}{1}
+\pagestyle{fancy}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \input{abstract/abstract.tex}
+
+% \cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \input{acknowledgements/acknowledgements.tex}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%--- table of contents
+\fancyhead[RE,LO]{\sffamily {Table of Contents}}
+\tableofcontents 
+
+
+\clearpage{\pagestyle{empty}\cleardoublepage}
+\pagenumbering{arabic}
+\setcounter{page}{1}
+\fancyhead[LE,RO]{\slshape \rightmark}
+\fancyhead[LO,RE]{\slshape \leftmark}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{introduction/introduction.tex}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{background/background.tex}
+
+\input{related/related.tex}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{ethic/ethic.tex}
+
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \chapter{Experimental Results}
+
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \chapter{Conclusion}
+
+
+%% bibliography
+\bibliographystyle{unsrtnat} % for bibliography
+\bibliography{bibliography}
+% \addbibresource{bibliography.bib}
+% \printbibliography %Prints bibliography
+
+\end{document}

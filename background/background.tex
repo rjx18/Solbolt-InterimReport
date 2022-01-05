@@ -1,0 +1,386 @@
+\chapter{Background}
+
+\section{The Ethereum Blockchain}
+
+The Ethereum Blockchain can be described as a decentralised, transaction-based 
+state machine \cite{ethereumyellowpaper}. It runs on a proof-of-work system,
+where, simply put, miners run a computationally difficult algorithm, called Ethash
+\cite{ethash}, to find a valid nonce for a given block through trial and error. 
+The difficulty of the algorithm is adjusted dynamically to target the mean block time, 
+currently at around 13 seconds \cite{eip100}. Once a valid nonce is generated,
+it is very easy for other clients to verify, but almost impossible to tamper with,
+since changing even one transaction will lead to a completely different hash \cite{ethereumpow}.
+
+Miners are rewarded in Ether with each block they mine, and this gives an economic incentive for more 
+parties to participate in the network. Since the Ethash algorithm is being run by thousands of independent miners concurrently,
+this makes the Ethereum blockchain more decentralised and secure. A malicious miner
+will need to be able to consistently solve block nonces faster than other miners to 
+include malicious transactions into each new block, or even reorder blocks \cite{eth51percentattack}. 
+To do this, they would need to control over 51\% of the total hashing power 
+of the network, which is incredibly costly and difficult to achieve for a highly decentralised
+network. This therefore makes the Ethereum blockchain virtually tamper-proof.
+
+The world state of the Ethereum blockchain is a mapping between 160-bit addresses 
+and the corresponding account state. This world state can be altered through the 
+execution of transactions, which represent valid state transitions. Formally:
+\[ \sigma_{t + 1} \equiv \Upsilon(\sigma_{t}, T) \]
+where is $\Upsilon$ the Ethereum state transition function, $T$ is a valid transaction,
+and $\sigma_{t}$ and $\sigma_{t + 1}$ are neighbouring states \cite{ethereumyellowpaper}.
+The main innovation of Ethereum is that $\Upsilon$ allows any arbitrary computation to
+be executed, and $\sigma$ is able to store any arbitrary state, not limited to just account 
+balances. This leads us to the concept of smart contracts, which are arbitrary code deployed
+and stored on the Ethereum blockchain, that can be triggered by contract calls in the form
+of transactions submitted to the blockchain.
+
+\section{Smart contracts}
+
+The idea of smart contracts was first introduced in 1994 by Nick Szabo \cite{nickszabosmartcontracts1},
+where he describes it as a "computerised transaction protocol that executes the terms of a contract". 
+Contractual agreements between parties can be directly embedded within the systems that we 
+interact with, which are able to self-enforce the terms of the contract
+in a way that "minimise[s] exceptions both malicious and accidental, and minimise[s] the need
+for trusted intermediaries", akin to a digital vending machine \cite{nickszabosmartcontracts2}.
+
+The Ethereum blockchain is one of the first widely successful and adopted execution environment for 
+smart contracts. Due to the decentralised and tamper-resistant properties of Ethereum, 
+smart contracts deployed on Ethereum can operate as autonomous actors \cite{smartcontractsforiot},
+whose behaviours are completely deterministic and verifiable. Christidis et al also likens them to 
+stored procedures in a relational database \cite{smartcontractsforiot}. As an example, consider the
+following smart contract for a simple sale of a token X:
+
+\begin{enumerate}
+  \item Alice wants to sell, for example, 10 X tokens (in this case they could be non-fungible
+  tokens). She writes a buy token function, that accepts 5 Y tokens for each X token sold,
+  and then automatically transfers the correct number of X tokens to the buyer's address.
+  \item Bob wants to purchase 2 X tokens. He can then submit a transaction calling the 
+  buy token function, with 10 Y tokens from his own account balance. The smart contract will
+  then execute, and Bob will automatically receive 2 X tokens once the transaction is complete.
+  Bob does not need to worry if Alice will honour her part of the contract, because the
+  exchange is atomic and coded within the smart contract itself.
+  \item Alice can then withdraw the amount of Y tokens she received from the sale, by calling 
+  a withdraw profit function. This function would also check that the caller matches Alice's
+  preset address, so that no one else is able to steal her profit.
+  \item The smart contract can also keep track of the number of X tokens sold, such that 
+  sales will revert after the limit of 10 is reached. It can also automatically revert the 
+  transaction if the wrong amount of Y tokens are sent, or even refund Bob the correct amount 
+  if he sends too many Y tokens.
+\end{enumerate}
+
+Smart contracts can therefore be used to describe any arbitrary contractual agreement,
+and be used in applications such as voting and governance \cite{ethdao}, 
+peer-to-peer marketplaces \cite{opensea}, 
+collateralised borrowing platforms \cite{aave} \cite{compound}, or even NFT ticketing \cite{getprotocol} \cite{tkets}.
+It is important to note that smart contracts must be completely deterministic in nature, 
+or else each node in the decentralised network will output different resulting (but valid) states.
+
+\section{The Ethereum Virtual Machine}
+
+\subsection{Overview}
+
+Smart contracts on Ethereum run in a Turing-complete execution environment called the
+Ethereum Virtual Machine (EVM). The EVM runs in a sandboxed environment, and has no access
+to the underlying filesystem or network. It is a stack machine that has three types of
+storage -- storage, memory, and stack \cite{ethevm}, explained in detail in section \ref{section:storage}.
+
+The EVM runs compiled smart contracts in the form of EVM opcodes \cite{solidityevm}, which can perform
+the usual arithmetic, logical and stack operations such as \texttt{XOR}, \texttt{ADD}, and 
+\texttt{PUSH}. It also contains blockchain-specific opcodes, such as \texttt{BALANCE}, 
+which returns address balance in wei.
+
+An EVM transaction is a message sent from one account to another, and may include any
+arbitrary binary data (called the \textit{payload}) and Ether \cite{solidityevm}. If the
+target account is a \textit{contract account} (meaning it also stores code deployed on
+the blockchain), then that code is executed, and the payload is taken as input.
+
+The EVM also supports message calls, which allows contracts to call other contracts or
+send Ether to non-contract accounts \cite{solidityevm}. These are similar to transactions, 
+as they each have their own source, target, payload, Ether, gas and return data.
+
+Each transaction in the EVM can generate any number of logs, which are output by each block.
+These can be efficiently accessed by off-chain parties, using a bloom filter to find matching
+logs of a specified event from each block.
+
+\subsection{Storage}
+\label{section:storage}
+Every account contains a \texttt{storageRoot}, which is a hash of the root node of a Merkle
+Patricia tree that stores the \textit{storage} content of that account \cite{ethereumyellowpaper}.
+This consists of a key-value store that maps 256-bit words to 256-bit words \cite{solidityevm}.
+This storage type is the most expensive to read, and even more costly to write to, but is the
+only storage type that is persisted between transactions. Therefore, developers typically try 
+to reduce the amount of storage content used, and often simply store hashes to off-chain storage
+solutions such as InterPlanetary File System \cite{ipfs} or Arweave permanent storage \cite{arweave}. A contract
+can only access its own storage content.
+
+\textit{Memory} is the second data area where a contract can store non-persistent data. It is
+byte-addressable and linear, but reads are limited to a width of 256 bits, while writes
+can be either 8-bit or 256-bits wide. \cite{solidityevm} Memory is expanded each time an untouched 256-bit
+memory word is accessed, and the corresponding gas cost is paid upfront. This gas cost increases
+quadatically as the memory space accessed grows.
+
+The \textit{stack} is the last data area for storing data currently being operated on, since
+the EVM is stack-based and not register-based \cite{solidityevm}. This has a maximum
+size of 1024 elements of 256-bit words, and is the cheapest of the three types to access in general. 
+It is possible to copy one of the topmost 16 elements
+to the top of the stack, or swap the topmost element with one of the 16 elements below it.
+Other operations (such as \texttt{ADD} or \texttt{SUB}) take the top two elements as input,
+and push the result on the top of the stack. It is otherwise not possible to access elements
+deeper within the stack without first removing the top elements, or without moving elements
+into memory or storage first.
+
+\subsection{Gas consumption}
+Gas refers to the "the unit that measures the amount of computational effort required 
+to execute specific operations on the Ethereum network" \cite{ethgas}. It is the fee
+that is paid in Ether in order to successfully submit and execute a transaction 
+on the blockchain. This mechanism is introduced in order to avoid malicious actors
+from spamming the network, either by submitting many transactions at once in a denial
+of service attack, or by running accidental or intentional infinite loops in smart
+contract code. It also incentivises miners to participate in the network, as part of
+the gas fees (in the form of tips as introduced in EIP-1559 \cite{eip1559}) is given to the miner .
+
+Each block also has a block limit, which specifies the maximum amount of computation
+that can be done within each block. This is currently set at 30 million gas units,
+which is 2 times the target block size \cite{ethgas}. Transactions requiring more 
+gas than the block limit will therefore always revert, which means that all executions
+will either eventually halt, or hit the block limit and revert.
+
+% The amount of gas (in Gwei) paid by each user submitting a transaction is calculated as 
+% follows, after the EIP-1559 upgrade:
+% \[ \texttt{Gas units} \times (\texttt{Base fee} + \texttt{Tip}) \]
+% The gas units represent the amount of gas needed for the computation. The base fee
+% represents the base price of each unit of gas, which increases and decreases depending
+% on the utilisation of the previous block. The tip represents the amount of Ether the
+% user is willing to pay to miners in order to prioritise their transaction. One Gwei is 
+% a unit of Ether, equivalent to 0.000000001 Ether.
+
+The schedule for how gas units are calculated is described in detail in Appendix G and H of
+the Ethereum Yellow Paper \cite{ethereumyellowpaper}. In summary, each transaction first will require
+a base fee of 21000 gas units, which "covers the cost of an elliptic curve operation to recover the 
+sender address from the signature as well as the disk and bandwidth space of storing the transaction" 
+\cite{ethdesignrationale}. Then, depending on the opcodes of the contract being executed, additional
+units of gas will be used up. Most opcodes require a fixed gas unit, or a fixed gas unit per byte of data.
+An exception to this is the gas used for memory accesses, where it is calculated as such \cite{ethereumyellowpaper}:
+\[ C_{mem}(a) \equiv G_{memory} \cdot a + \left \lfloor{\frac{a^2}{512}}\right \rfloor \]
+Here, $G_{memory}$ is the gas unit paid for every every additional word when expanding memory.
+$a$ is the number of memory words such that all accesses reference valid memory. Therefore,
+memory accesses are only linear up to 724B, after which it becomes quadratic and each memory
+expansion costs more.
+
+Another exception would be the \texttt{SSTORE} and \texttt{SELFDESTRUCT} instructions. For
+these instructions, the schedule is defined as follows \cite{ethereumyellowpaper}:
+
+\setlength{\tabulinesep}{3pt}
+\begin{tabu} to \textwidth{|X[1]|X[1]|X[5]|}
+  \toprule
+  Name & Value & Description \\
+  \midrule
+  $G_{\mathrm{sset}}$ & 20000 & Paid for an {\small SSTORE} operation when the value of the storage bit is set to non-zero from zero. \\
+  $G_{\mathrm{sreset}}$ & 2900 & Paid for an {\small SSTORE} operation when the value of the storage bit's zeroness remains unchanged or\\
+  &&is set to zero. \\
+  $R_{\mathrm{sclear}}$ & 15000 & Refund given (added into a \textit{refund counter}) when the storage value is set to zero from\\
+  &&non-zero.\\
+  $G_{\mathrm{selfdestruct}}$ & 5000 & Amount of gas to pay for a {\small SELFDESTRUCT} operation. \\
+  $R_{\mathrm{selfdestruct}}$ & 24000 & Refund given (added into a \textit{refund counter}) for self-destructing an account. \\
+  \bottomrule
+\end{tabu}\\
+
+The refund counter tracks the units of gas that is refunded to the user upon successful
+completion of a transaction, which means that the transaction does not revert or invoke an
+out-of-gas exception. Only up to half of the total gas used by the transaction can be refunded
+using the refund counter. This mechanism is introduced to encourage freeing up storage resources
+used by the Ethereum blockchain.
+
+Therefore, we can see that the estimation of gas usage for any given function is not trivial
+or easily predictable, and often depends on the current state of the blockchain, as well as the 
+input parameters given. It would also require detailed modelling of the gas and refund counter, 
+as well as other internals of the EVM implementation.
+
+\section{Solidity}
+\subsection{The Solidity language}
+
+Solidity is a statically-typed, object-oriented, high-level programming language for developing
+Ethereum smart contracts \cite{ethsolidity}. It is a language in active development with
+numerous breaking changes in each major release, all of which are documented extensively online 
+\cite{soliditydocs}. We will summarise some of its notable features in this section.
+
+\textbf{Inheritance.} Solidity supports inheritance, by extending other contracts. These contracts can be interfaces (\textit{abstract contracts}),
+with incomplete implementations of function signatures. A prime example of this would be the ERC-20
+and ERC-721 interfaces \cite{etherc20} \cite{etherc721}, which are standard interfaces that Ethereum 
+tokens and non-fungible tokens respectively are expected to follow. 
+
+\textbf{Libraries.} Solidity also supports the
+use of libraries, which can contain re-usable functions or structs that are referenced by other
+contracts. OpenZeppelin for example has a wide range of utility libraries for implementing enumerable sets,
+safe math, and so on \cite{openzeppelincontracts}.
+
+\textbf{Function scopes.} Solidity allows developers to define the scopes of each function --
+\texttt{internal}, \texttt{external}, \texttt{private}, or \texttt{public} \cite{soliditydocsscope}. 
+\texttt{internal} functions can only be called by the current contract or any contracts that
+extend it, and are translated into simple jumps within the EVM. The current memory is not cleared,
+making such function calls very efficient. \texttt{private} functions form a subset of
+\texttt{internal} functions, in that it is stricter by only being visible to the current contract.
+\texttt{external} functions can only be called via transactions or message calls,
+and all arguments must be copied into memory first. This means that they can only be called
+"internally" by the same contract via the \texttt{this} keyword, which effectively makes an 
+external message call to itself. \texttt{public} functions are a superset of \texttt{external} functions,
+in that they can be called internally or externally.
+
+\textbf{Storage types.} Solidity supports the explicit definition of where variables are stored -- 
+\texttt{storage}, \texttt{memory}, \texttt{calldata}, or \texttt{stack}. \texttt{calldata} is
+an immutable, non-persistent area for storing \textit{function arguments} only, and is
+reccomended to be used whenever possible as it avoids copies or modification of data.
+\texttt{storage} and \texttt{memory} stores the variable in the respective data areas, 
+as described in section \ref{section:storage}. 
+
+
+\subsection{The Solidity compiler and EVM assembly}
+
+The Solidity compiler translates the high-level Solidity code into low-level EVM bytecode,
+as well as generating other metadata such as the contract Application Binary Interface (ABI),
+and coarse gas estimates for each function. It supports a built-in optimiser, which
+takes an \texttt{--optimize-runs} parameter. This parameter balances the gas costs of the
+initial deployment, with the gas costs of future function calls. For example, for
+a contract that would be called many times after it is deployed, one can set \texttt{--optimize-runs=200},
+which will generate a larger bytecode, but make future transactions cheaper. The difference
+that this setting makes in the bytecode may be interesting for developers to examine.
+
+To illustrate the operation of the compiler, let us examine the following example contract,
+as well as the (truncated) output from the Solidity compiler.\\
+
+\begin{lstlisting}[language=Solidity, caption={An example Solidity contract}, label={lst:solcsolidityexp}, basicstyle=\ttfamily\scriptsize]
+pragma solidity >=0.5.0 <0.9.0;
+contract C {
+    function one() public pure returns (uint) {
+        return 1;
+    }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=plantuml, caption={EVM assembly from the Solidity compiler}, label={lst:solcexp}, basicstyle=\ttfamily\scriptsize]
+======= test.sol:C =======
+...
+sub_0: assembly {
+        /* "test.sol":33:123  contract C {... */
+      mstore(0x40, 0x80)
+      callvalue
+...
+    tag_1:
+      pop
+      jumpi(tag_2, lt(calldatasize, 0x04))
+      shr(0xe0, calldataload(0x00))
+...
+    tag_5:
+        /* "test.sol":87:91  uint */
+      0x00
+        /* "test.sol":111:112  1 */
+      0x01
+        /* "test.sol":104:112  return 1 */
+      swap1
+      pop
+        /* "test.sol":51:120  function one() public pure returns (uint) {... */
+      swap1
+      jump	// out
+        /* "#utility.yul":7:84   */
+...
+        /* "#utility.yul":7:84   */
+    tag_9:
+        /* "#utility.yul":44:51   */
+      0x00
+        /* "#utility.yul":73:78   */
+      dup2
+        /* "#utility.yul":62:78   */
+...
+
+    auxdata: [...]
+}
+\end{lstlisting}
+
+As seen in Listing \ref{lst:solcexp}, the Solidity code is translated into subroutines with
+multiple tags as jump destinations, similar to the GCC compiler. It also includes control flow
+instructions such as \texttt{JUMPI} and \texttt{JUMP}. Debug information is also
+embedded into the output, which describes the code fragment that a particular segment of
+assembly maps to, similar to the \texttt{-g} flag in the GCC compiler. These are in the 
+form of character offsets from the top of the source file, rather than line and character 
+numbers. 
+
+A detailed explanation of how the EVM assembly maps to the Solidity instructions
+is included in section \ref{section:Yul}, where we examine this in relation to the Yul
+intermediate representation.
+
+An interesting feature is the \texttt{\#utility.yul} file that is referenced throughout
+the output. This file contains extra Yul code (see Section \ref{section:Yul}) that are
+generated automatically by the compiler, and its addition is triggered by the usage of
+specific language features, such as the ABI encoder for function paramters and return values.
+They are not specific to the user's source code, but are likely to be executed in control flow
+jumps from other parts of user code.
+
+The Solidity compiler also has other command-line features as documented online 
+\cite{solcinputoptions}, such as the manual linking of library addresses, setting of 
+optimisation options like the inliner or the deduplicator, as well as generation of
+additional files such as the Abstract Syntax Tree (AST), which can be very useful for the 
+construction of control flow graphs. A recent addition to this
+is the (experimental) function to generate an intermediate representation of the user Solidity code in
+Yul, which we will elaborate more in the next section.
+
+\subsection{Yul}
+\label{section:Yul}
+
+Yul is an intermediate language that is designed to be compiled into bytecode for different
+backends \cite{solcyul}, such as future EVM versions and EWASM, and acts as a common denominator
+for all current and future platforms. Yul is also designed to be human readable, with high level constructs
+such as \texttt{for} and \texttt{switch}, but still suitable for whole-program optimisation.
+
+As an example, we examine the Yul intermediate representation (IR) output from the Solidity compiler,
+using the same Solidity code in Listing \ref{lst:solcsolidityexp}:\\
+
+\begin{lstlisting}[language=plantuml, caption={Yul IR from the Solidity compiler}, label={lst:solcexp}, basicstyle=\ttfamily\scriptsize]
+ /// @use-src 0:"test.sol"
+ object "C_10" {
+     ...
+     /// @use-src 0:"test.sol"
+     object "C_10_deployed" {
+         code {
+             ...
+             /// @ast-id 9
+             /// @src 0:51:120  "function one() public pure returns (uint) {..."
+             function fun_one_9() -> var__4 {
+                 /// @src 0:87:91  "uint"
+                 let zero_t_uint256_1 := zero_value_for_split_t_uint256()
+                 var__4 := zero_t_uint256_1
+ 
+                 /// @src 0:111:112  "1"
+                 let expr_6 := 0x01
+                 /// @src 0:104:112  "return 1"
+                 var__4 := convert_t_rational_1_by_1_to_t_uint256(expr_6)
+                 leave
+ 
+             }
+             /// @src 0:33:123  "contract C {..."
+ 
+         }
+        ...
+     }
+ }
+\end{lstlisting}
+
+We see that the Yul code far more resembles the original Solidity code. Here, we also
+observe how the stack is being used in our simple \texttt{one()} function:
+
+\begin{enumerate}
+  \item First, a temporary local variable \texttt{zero\_t\_uint256\_1} is pushed onto the stack with value \texttt{0x00}. 
+  Then, it is assigned to the return variable \texttt{var\_\_4}. In EVM assembly, this maps to
+  the \texttt{0x00} instruction on line 15 of Listing \ref{lst:solcexp}.
+  \item Next, another temporary local variable \texttt{expr\_6} is pushed onto the stack with
+  value \texttt{0x01}. It is then assigned to the return variable \texttt{var\_\_4} again, and the function
+  exits, returning the value in \texttt{var\_\_4}. In EVM assembly, this maps to the \texttt{0x01}
+  instruction on line 17. Then, to assign the new value to \texttt{var\_\_4}, we first swap it with the
+  old value (currently on the 1st slot in the stack below \texttt{0x01}), on line 19. Finally, we pop the
+  old value off the stack, and swap the next jump instruction address onto the top of the stack, in
+  lines 20 and 22.
+\end{enumerate}
+
+Similar to the EVM assembly, the generated Yul code also contains debug information about
+the mapping to the original source code. This can be very useful for understanding how the
+final EVM assembly operates, as seen in our previous example. As such, it would be
+interesting to generate a similar mapping for this project to the Yul intermediate
+representation, in addition to the final EVM assembly.
+

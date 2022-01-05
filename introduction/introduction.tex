@@ -1,0 +1,134 @@
+\chapter{Introduction}
+
+% \begin{figure}[tb]
+% \centering
+% \includegraphics[width = 0.4\hsize]{./figures/imperial}
+% \caption{Imperial College Logo. It's nice blue, and the font is quite stylish. But you can choose a different one if you don't like it.}
+% \label{fig:logo}
+% \end{figure}
+\begin{chapquote}{Vitalik Buterin \cite{vitalikquote}}
+    Whereas most technologies tend to automate workers on the 
+    periphery doing menial tasks, blockchains automate away the center.
+    Instead of putting the taxi driver out of a job, blockchain puts 
+    Uber out of a job and lets the taxi drivers work with the customer 
+    directly.
+\end{chapquote}
+
+\section{Overview}
+In recent years, Ethereum has emerged as a promising network
+for building next-generation, decentralised applications (DApps). Ethereum makes use of
+blockchain technology to achieve consensus in a distributed, public,
+and immutable ledger. It supports the running of arbitrary code, called smart contracts,
+in its own execution environment, called the Ethereum Virtual Machine (EVM).
+These smart contracts are typically written in a high level programming
+language, most notably Solidity, and are often used to power the transactional
+backends of various DApps. They are also used to define the behaviour of utility tokens 
+or various non-fungible tokens (NFTs), which are simply smart contracts that extend a standard
+interface. Examples would be decentralised exchanges such 
+as Uniswap \cite{uniswap} and Sushiswap, decentralised borrowing and lending platforms such as
+Aave \cite{aave} and Compound \cite{compound}, algorithmic stablecoins such as Dai \cite{makerdao} and TerraUSD \cite{terra}, and NFT-powered gaming 
+ecosystems such as Axie Infinity \cite{axieinfinity} and the Sandbox \cite{sandbox}.
+
+Part of the appeal and increasing usage of smart contracts is that it allows transactions and exchanges
+to take place in a trustless, non-custodial, and cryptographically secure fashion.
+For example, in the case of a decentralised exchange, there is no need for two
+untrusted parties to hand over custody of their assets to a trusted intermediary,
+who would then conduct the actual exchange. Smart contracts are instead able to conduct
+the exchange of tokens or assets in a single, atomic transaction,
+which will either succeed, or revert and leave both parties unaffected.
+This powerful ability is imparted by Ethereum's immutable and decentralised nature, 
+as no single party can control or alter the state of the blockchain directly.
+
+The result is an explosion in smart contract development and total
+value locked (TVL), from around \$600 million to over \$150 billion in the
+span of two years \cite{defillama}. However, this 
+has also brought on scalability issues that limit the overall usefulness
+of the Ethereum network. In simple terms, smart contract transactions 
+each require a certain amount of ``gas'' in order to be processed, 
+depending on its complexity. Users bid for the price of gas they are
+willing to pay, in ether, and miners typically choose to process the 
+transactions with higher bids. Since only a limited number of transactions
+can be processed in each block, this results in an efficient market
+economy between miners and users. 
+
+However, when more users start utilising the network, the gas prices
+naturally start rising as demand grows. Lately, due to the boom in decentralised 
+finance (DeFi) platforms and NFTs, the gas price has 
+surged by almost 10 times its price compared to two years ago \cite{gashistory}. 
+Transactions are costing up to \$63 on average in November \cite{gasfee1}, and this has made the
+Ethereum blockchain inhibitive to use for most users \cite{gasfee2}.  
+Uniswap, a popular decentralised exchange for trading tokens on the Ethereum network,
+has spent more than \$8.6 million per day in gas fees alone, as reported last November \cite{gasusageperday}.
+Therefore, there is a clear need not only for better scaling of the Ethereum blockchain, but 
+also for developers creating DApps on the Ethereum blockchain to optimise their 
+smart contract code for gas usage.
+
+Despite the enormous cost savings that can be achieved via more gas-efficient smart contracts, 
+most of the development on Ethereum smart contract analysis currently
+surrounds verification of smart contracts rather than gas optimisation \cite{smartcontracttools}.
+The Solidity compiler itself does offer an estimate for gas usage \cite{soliditydocs}, although only at a 
+course-grained function-call level, making analysis of code within each function difficult.
+It also only performs a rudimentary best-effort estimate, and outputs infinity whenever the
+function becomes too complex. Given that Solidity is a language under active development
+with numerous breaking changes implemented at each major version release \cite{solidity07breaking} \cite{solidity08breaking}, the few tools
+designed with gas estimation in mind are also either no longer maintained or broken, or
+inadequate for fine-grained, line-level gas analysis. We will discuss some of these existing
+tools in the background section later.
+
+Currently, most Solidity developers simply make use of general tools such as the Remix IDE, Truffle and Ganache for
+smart contract development \cite{consensystools}. Such tools are not specialised for detailed gas usage profiling, and developers
+may potentially miss out on optimisations that may save up to thousands of dollars worth of gas \cite{gaschecker},
+or worse, possibly render a contract call unusable due to reaching the gas limits of each block \cite{governmentalstuck}.
+Gas optimisation is a step that every developer has to carefully consider when deploying an immutable contract on the blockchain,
+and therefore creating a tool that calculates the gas usage for each bytecode instruction 
+and line of code could greatly enhance and simplify such analysis, not only for 
+smart contracts on the Ethereum blockchain, but also for all EVM compatible chains such as
+the Binance Smart Chain, Polygon, and the Avalanche Contract Chain \cite{evmcompatiblechains}.
+
+\section{Planned contributions}
+
+With the goal of gas optimisation in mind, this project aims to improve on current 
+smart contract development tools by creating a smart contract compiler explorer tool,
+which can also display a heatmap of the gas usage of each bytecode instruction, while mapping
+them to the corresponding lines in the user's source code. This is inspired by Godbolt \cite{godbolt},
+a popular compiler explorer tool for C++ for finding optimisations in the GCC compiler.
+The following summarises the intended contributions this project plans to achieve.
+
+\begin{enumerate}
+    \item \textbf{Compilation and mapping of each line of user Solidity code into their corresponding EVM bytecode and Yul intermediate representation.}
+    
+      Similar to Godbolt which is able to easily map and visualise which assembly
+      instructions correspond to its high-level C++ code, we want to achieve a
+      similar result with EVM assembly bytecode and its corresponding Solidity code.
+      We also want to be able to generate the Yul intermediate representation for
+      the Solidity code, which is a recently introduced language between Solidity
+      and EVM assembly.
+    \item \textbf{Bounded static analysis of gas consumption for each EVM instruction}
+    
+      The schedule for gas consumption of EVM instructions is carefully laid out 
+      in the Ethereum Yellow Paper \cite{ethereumyellowpaper}. Using this,
+      we want to conduct a bounded static analysis of gas consumption for each line
+      of Solidity code, instead of simply at a function call level. To do this, we would
+      need to generate a control flow graph of EVM instructions for each function call, and we plan on making use
+      of user-defined hinted bounds for parameters, such as for variable length stored parameters.
+
+    \item \textbf{Generation of heatmaps of gas usage per line of code}
+    
+      To make visualising gas usage simpler, we plan on generating a heatmap on top of
+      the direct mapping from EVM bytecode instructions to Solidity code, which would 
+      display at a glance which lines of code are consuming the most amount of gas, and 
+      may potentially have room for optimisation.
+
+    \item \textbf{Automatic identification of gas inefficient patterns}
+      
+      We plan on also identifying some common gas-hungry code patterns, 
+      based on previous literature on this topic \cite{gaschecker} \cite{designpatternsforgasoptimisation} \cite{underoptimisedcontractsdevour}, as well as our 
+      own static analysis of the gas usage, and provide suggestions on how 
+      to improve them.
+      
+\end{enumerate}
+
+
+\section{Outline of report}
+
+In Chapter 
