@@ -6,19 +6,19 @@ The Ethereum Blockchain can be described as a decentralised, transaction-based
 state machine \cite{ethereumyellowpaper}. It runs on a proof-of-work system,
 where, simply put, miners run a computationally difficult algorithm, called Ethash
 \cite{ethash}, to find a valid nonce for a given block through trial and error. 
-The difficulty of the algorithm is adjusted dynamically to target the mean block time, 
-currently at around 13 seconds \cite{eip100}. Once a valid nonce is generated,
-it is very easy for other clients to verify, but almost impossible to tamper with,
+Once a valid nonce is generated, it is very easy for other clients to verify, but almost impossible to tamper with,
 since changing even one transaction will lead to a completely different hash \cite{ethereumpow}.
+The highly decentralised nature of the network makes it incredibly costly and difficult to
+issue malicious blocks or reorder previous blocks.
 
-Miners are rewarded in Ether with each block they mine, and this gives an economic incentive for more 
-parties to participate in the network. Since the Ethash algorithm is being run by thousands of independent miners concurrently,
-this makes the Ethereum blockchain more decentralised and secure. A malicious miner
-will need to be able to consistently solve block nonces faster than other miners to 
-include malicious transactions into each new block, or even reorder blocks \cite{eth51percentattack}. 
-To do this, they would need to control over 51\% of the total hashing power 
-of the network, which is incredibly costly and difficult to achieve for a highly decentralised
-network. This therefore makes the Ethereum blockchain virtually tamper-proof.
+% Miners are rewarded in Ether with each block they mine, and this gives an economic incentive for more 
+% parties to participate in the network. Since the Ethash algorithm is being run by thousands of independent miners concurrently,
+% this makes the Ethereum blockchain more decentralised and secure. A malicious miner
+% will need to be able to consistently solve block nonces faster than other miners to 
+% include malicious transactions into each new block, or even reorder blocks \cite{eth51percentattack}. 
+% To do this, they would need to control over 51\% of the total hashing power 
+% of the network, which is incredibly costly and difficult to achieve for a highly decentralised
+% network. This therefore makes the Ethereum blockchain virtually tamper-proof.
 
 The world state of the Ethereum blockchain is a mapping between 160-bit addresses 
 and the corresponding account state. This world state can be altered through the 
@@ -96,9 +96,9 @@ The EVM also supports message calls, which allows contracts to call other contra
 send Ether to non-contract accounts \cite{solidityevm}. These are similar to transactions, 
 as they each have their own source, target, payload, Ether, gas and return data.
 
-Each transaction in the EVM can generate any number of logs, which are output by each block.
-These can be efficiently accessed by off-chain parties, using a bloom filter to find matching
-logs of a specified event from each block.
+% Each transaction in the EVM can generate any number of logs, which are output by each block.
+% These can be efficiently accessed by off-chain parties, using a bloom filter to find matching
+% logs of a specified event from each block.
 
 \subsection{Storage}
 \label{section:storage}
@@ -139,7 +139,8 @@ the gas fees (in the form of tips as introduced in EIP-1559 \cite{eip1559}) is g
 
 Each block also has a block limit, which specifies the maximum amount of computation
 that can be done within each block. This is currently set at 30 million gas units,
-which is 2 times the target block size \cite{ethgas}. Transactions requiring more 
+% which is 2 times the target block size 
+\cite{ethgas}. Transactions requiring more 
 gas than the block limit will therefore always revert, which means that all executions
 will either eventually halt, or hit the block limit and revert.
 
@@ -237,11 +238,13 @@ as described in section \ref{section:storage}.
 The Solidity compiler translates the high-level Solidity code into low-level EVM bytecode,
 as well as generating other metadata such as the contract Application Binary Interface (ABI),
 and coarse gas estimates for each function. It supports a built-in optimiser, which
-takes an \texttt{--optimize-runs} parameter. This parameter balances the gas costs of the
-initial deployment, with the gas costs of future function calls. For example, for
-a contract that would be called many times after it is deployed, one can set \texttt{--optimize-runs=200},
-which will generate a larger bytecode, but make future transactions cheaper. The difference
-that this setting makes in the bytecode may be interesting for developers to examine.
+takes an \texttt{--optimize-runs} parameter. 
+% This parameter balances the gas costs of the
+% initial deployment, with the gas costs of future function calls. For example, for
+% a contract that would be called many times after it is deployed, one can set \texttt{--optimize-runs=200},
+% which will generate a larger bytecode, but make future transactions cheaper. The difference
+It may be interesting for developers to observe what differences this parameter makes within 
+the bytecode.
 
 To illustrate the operation of the compiler, let us examine the following example contract,
 as well as the (truncated) output from the Solidity compiler.\\
@@ -284,10 +287,6 @@ sub_0: assembly {
         /* "#utility.yul":7:84   */
     tag_9:
         /* "#utility.yul":44:51   */
-      0x00
-        /* "#utility.yul":73:78   */
-      dup2
-        /* "#utility.yul":62:78   */
 ...
 
     auxdata: [...]
@@ -296,30 +295,32 @@ sub_0: assembly {
 
 As seen in Listing \ref{lst:solcexp}, the Solidity code is translated into subroutines with
 multiple tags as jump destinations, similar to the GCC compiler. It also includes control flow
-instructions such as \texttt{JUMPI} and \texttt{JUMP}. Debug information is also
+instructions such as \texttt{JUMPI} and \texttt{JUMP}. Since the EVM is a stack machine, each
+\texttt{JUMPI} and \texttt{JUMP} instruction does not have a corresponding target as an argument.
+Instead, the jump target is specified by the value at the top of the stack, which makes 
+control flow analysis somewhat more complicated. Valid jump
+addresses are also specified via the \texttt{JUMPDEST} instruction.
+Debug information is
 embedded into the output, which describes the code fragment that a particular segment of
-assembly maps to, similar to the \texttt{-g} flag in the GCC compiler. These are in the 
-form of character offsets from the top of the source file, rather than line and character 
-numbers. 
+assembly maps to, similar to the \texttt{-g} flag in the GCC compiler.
 
 A detailed explanation of how the EVM assembly maps to the Solidity instructions
 is included in section \ref{section:Yul}, where we examine this in relation to the Yul
 intermediate representation.
 
-An interesting feature is the \texttt{\#utility.yul} file that is referenced throughout
-the output. This file contains extra Yul code (see Section \ref{section:Yul}) that are
-generated automatically by the compiler, and its addition is triggered by the usage of
+An additional \texttt{\#utility.yul} file is also generated, which contains extra Yul code (see Section \ref{section:Yul}) that are
+created automatically by the compiler, and its addition is triggered by the usage of
 specific language features, such as the ABI encoder for function paramters and return values.
 They are not specific to the user's source code, but are likely to be executed in control flow
 jumps from other parts of user code.
 
-The Solidity compiler also has other command-line features as documented online 
-\cite{solcinputoptions}, such as the manual linking of library addresses, setting of 
-optimisation options like the inliner or the deduplicator, as well as generation of
-additional files such as the Abstract Syntax Tree (AST), which can be very useful for the 
-construction of control flow graphs. A recent addition to this
-is the (experimental) function to generate an intermediate representation of the user Solidity code in
-Yul, which we will elaborate more in the next section.
+% The Solidity compiler also has other command-line features as documented online 
+% \cite{solcinputoptions}, such as the manual linking of library addresses, setting of 
+% optimisation options like the inliner or the deduplicator, as well as generation of
+% additional files such as the Abstract Syntax Tree (AST), which can be very useful for the 
+% construction of control flow graphs. A recent addition to this
+% is the (experimental) function to generate an intermediate representation of the user Solidity code in
+% Yul, which we will elaborate more in the next section.
 
 \subsection{Yul}
 \label{section:Yul}
@@ -383,4 +384,3 @@ the mapping to the original source code. This can be very useful for understandi
 final EVM assembly operates, as seen in our previous example. As such, it would be
 interesting to generate a similar mapping for this project to the Yul intermediate
 representation, in addition to the final EVM assembly.
-

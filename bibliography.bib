@@ -358,3 +358,77 @@ url = {https://ethereum.github.io/yellowpaper/paper.pdf}
   title = {Yul},
   url={https://docs.soliditylang.org/en/latest/yul.html}
 }
+
+@article{dontrunonfumes,
+author = {Albert, Elvira and Correas, Jesús and Gordillo, Pablo and Román Díez, Guillermo and Rubio, Albert},
+year = {2021},
+month = {02},
+pages = {110923},
+title = {Don’t run on fumes — Parametric gas bounds for smart contracts},
+volume = {176},
+journal = {Journal of Systems and Software},
+doi = {10.1016/j.jss.2021.110923}
+}
+
+@book{HennessyPatterson12,
+  added-at = {2016-11-04T19:12:58.000+0100},
+  address = {Amsterdam},
+  author = {Hennessy, John L. and Patterson, David A.},
+  biburl = {https://www.bibsonomy.org/bibtex/2d2d024a4ec1fd887aa36482288ca38f9/flint63},
+  edition = 5,
+  file = {ACM Learning Center eBook:2012/HennessyPatterson12.pdf:PDF;Amazon Search inside:http\://www.amazon.de/gp/reader/012383872X/:URL},
+  groups = {public},
+  interhash = {83342075ee6946a3cd5ffa87f2337a87},
+  intrahash = {d2d024a4ec1fd887aa36482288ca38f9},
+  isbn = {978-0-12-383872-8},
+  keywords = {01624 103 book acm elsevier computer architecture mobile device cloud intro},
+  publisher = {Morgan Kaufmann},
+  timestamp = {2017-07-13T18:01:10.000+0200},
+  title = {Computer Architecture: A Quantitative Approach},
+  username = {flint63},
+  year = 2012
+}
+
+@article{constructcfg,
+  author    = {Elvira Albert and
+               Jes{\'{u}}s Correas and
+               Pablo Gordillo and
+               Guillermo Rom{\'{a}}n{-}D{\'{\i}}ez and
+               Albert Rubio},
+  title     = {Analyzing Smart Contracts: From {EVM} to a sound Control-Flow Graph},
+  journal   = {CoRR},
+  volume    = {abs/2004.14437},
+  year      = {2020},
+  url       = {https://arxiv.org/abs/2004.14437},
+  eprinttype = {arXiv},
+  eprint    = {2004.14437},
+  timestamp = {Sun, 03 May 2020 17:39:04 +0200},
+  biburl    = {https://dblp.org/rec/journals/corr/abs-2004-14437.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+
+@article{mythril,
+  author    = {Bernhard Mueller},
+  title     = {Smashing Ethereum Contracts for Fun and Real Profit},
+  journal   = {HITBSecConf},
+  year      = {2018},
+  url       = {https://github.com/b-mueller/smashing-smart-contracts/},
+}
+
+@inproceedings{oyente,
+author = {Luu, Loi and Chu, Duc-Hiep and Olickel, Hrishi and Saxena, Prateek and Hobor, Aquinas},
+title = {Making Smart Contracts Smarter},
+year = {2016},
+isbn = {9781450341394},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2976749.2978309},
+doi = {10.1145/2976749.2978309},
+abstract = {Cryptocurrencies record transactions in a decentralized data structure called a blockchain. Two of the most popular cryptocurrencies, Bitcoin and Ethereum, support the feature to encode rules or scripts for processing transactions. This feature has evolved to give practical shape to the ideas of smart contracts, or full-fledged programs that are run on blockchains. Recently, Ethereum's smart contract system has seen steady adoption, supporting tens of thousands of contracts, holding millions dollars worth of virtual coins.In this paper, we investigate the security of running smart contracts based on Ethereum in an open distributed network like those of cryptocurrencies. We introduce several new security problems in which an adversary can manipulate smart contract execution to gain profit. These bugs suggest subtle gaps in the understanding of the distributed semantics of the underlying platform. As a refinement, we propose ways to enhance the operational semantics of Ethereum to make contracts less vulnerable. For developers writing contracts for the existing Ethereum system, we build a symbolic execution tool called Oyente to find potential security bugs. Among 19, 336 existing Ethereum contracts, Oyente flags 8, 833 of them as vulnerable, including the TheDAO bug which led to a 60 million US dollar loss in June 2016. We also discuss the severity of other attacks for several case studies which have source code available and confirm the attacks (which target only our accounts) in the main Ethereum network.},
+booktitle = {Proceedings of the 2016 ACM SIGSAC Conference on Computer and Communications Security},
+pages = {254–269},
+numpages = {16},
+keywords = {blockchain, cryptocurrencies, smart contract, ethereum, symbolic execution},
+location = {Vienna, Austria},
+series = {CCS '16}
+}

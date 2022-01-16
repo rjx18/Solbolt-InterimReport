@@ -103,14 +103,17 @@ The following summarises the intended contributions this project plans to achiev
       We also want to be able to generate the Yul intermediate representation for
       the Solidity code, which is a recently introduced language between Solidity
       and EVM assembly.
-    \item \textbf{Bounded static analysis of gas consumption for each EVM instruction}
+    \item \textbf{Parametric static analysis of gas consumption for each EVM instruction}
     
       The schedule for gas consumption of EVM instructions is carefully laid out 
       in the Ethereum Yellow Paper \cite{ethereumyellowpaper}. Using this,
-      we want to conduct a bounded static analysis of gas consumption for each line
+      we want to conduct a static analysis of gas consumption for each line
       of Solidity code, instead of simply at a function call level. To do this, we would
-      need to generate a control flow graph of EVM instructions for each function call, and we plan on making use
-      of user-defined hinted bounds for parameters, such as for variable length stored parameters.
+      need to generate a control flow graph of EVM instructions for each function call, and then
+      calculate the worst-case gas bounds for each instruction. We would also like to
+      be able to infer parametric bounds for gas consumption instead of simply
+      constant bounds, and allow users to define these external parameters to obtain a 
+      more precise estimate.
 
     \item \textbf{Generation of heatmaps of gas usage per line of code}
     
@@ -119,12 +122,12 @@ The following summarises the intended contributions this project plans to achiev
       display at a glance which lines of code are consuming the most amount of gas, and 
       may potentially have room for optimisation.
 
-    \item \textbf{Automatic identification of gas inefficient patterns}
+    % \item \textbf{Automatic identification of gas inefficient patterns}
       
-      We plan on also identifying some common gas-hungry code patterns, 
-      based on previous literature on this topic \cite{gaschecker} \cite{designpatternsforgasoptimisation} \cite{underoptimisedcontractsdevour}, as well as our 
-      own static analysis of the gas usage, and provide suggestions on how 
-      to improve them.
+    %   We plan on also identifying some common gas-hungry code patterns, 
+    %   based on previous literature on this topic \cite{gaschecker} \cite{designpatternsforgasoptimisation} \cite{underoptimisedcontractsdevour}, as well as our 
+    %   own static analysis of the gas usage, and provide suggestions on how 
+    %   to improve them.
       
 \end{enumerate}
 

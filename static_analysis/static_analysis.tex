@@ -1,0 +1,121 @@
+\chapter{Gas bounds analysis of EVM instructions}
+
+Now that we understand the basics of the Ethereum blockchain as well as 
+the generation of EVM instructions from Solidity code, let us now examine
+how we can derive gas estimates from it. Although many 
+of the opcodes have a fixed gas cost, a large part of gas used still may be derived from 
+storage and memory costs, which require more detailed analysis. Therefore, a
+naive implementation of simply adding up the fixed costs of each instruction
+will not be sufficiently precise or sound for our analysis.
+
+To solve this, we propose making use of and extending Mythril, a symbolic execution engine for EVM bytecode,
+in order accurately infer gas bounds for each line of Solidity code. We will discuss the steps involved in detail within
+the following sections.
+
+\section{Construction of basic blocks}
+
+After the generation of the EVM bytecode, we must first define the notion of a basic blocks, 
+which are the maximal straight-line sequence of consecutive instructions where there are no branches
+in apart from the first instruction, and no branches out apart from the last instruction 
+\cite{HennessyPatterson12}. For EVM instructions, this can be defined as such \cite{constructcfg}:
+
+\begin{definition}[basic blocks]
+
+  \textit{Given an EVM program $P \equiv b_0,...,b_p$, we have}:
+  \[
+    blocks(P) \equiv \Bigg\{ B_i \equiv b_i,...,b_j \:\Bigg|\:
+    \begin{aligned}
+      & (\forall k.i < k < j, b_k \notin Jump \cup End \cup \{ \textit{\texttt{JUMPDEST}} \}) \: \land  \\
+      & (i = 0 \lor b_i \equiv \textit{\texttt{JUMPDEST}} \lor b_{i-1} \equiv \textit{\texttt{JUMPI}}) \: \land \\
+      & (j = p \lor b_j \in Jump \lor b_j \in End \lor b_{j+1} \equiv \textit{\texttt{JUMPDEST}})
+    \end{aligned}
+    \:
+    \Bigg\}
+  \]
+  \textit{where}
+  \[
+    \begin{aligned}
+    &Jump \equiv \{ \textit{\texttt{JUMP}}, \textit{\texttt{JUMPI}} \} \\
+    &End \equiv \{ \textit{\texttt{REVERT}}, \textit{\texttt{STOP}}, \textit{\texttt{INVALID}} \}
+    \end{aligned}
+  \]
+
+\end{definition}
+
+The generation of basic blocks can therefore be done in linear time, by parsing each
+EVM instruction line by line. After this, we can also then generate the set of valid jump addresses,
+which are simply the set of addresses with \textit{\texttt{JUMPDEST}} instructions.
+
+\section{Symbolic execution}
+
+Next, in order to understand the maximum gas costs incurred by each basic block during transaction
+execution, we can use symbolic execution to explore as many of the possible execution branches that
+can be reached. This requires a detailed model of the internals of the EVM, such as how it
+handles the stack, and fortunately Mythril is a tool that has such capabilities. Mythril \cite{mythril} is originally
+designed by ConsenSys for verification of smart contracts and analysing which path conditions are able to
+reach certain states to induce undesired behaviour, such as killing a smart contract. However, its \texttt{LASER} symbolic
+execution engine can also be used for our purposes of gas estimation. It also has the ability to output a control flow graph
+of the paths it took during symbolic execution. 
+
+To do this, we propose extending its gas meter module to also keep track of the total gas used by each basic block. Then,
+we are able to output a control flow graph with the corresponding gas usage information, and then calculate the maximum 
+and minimum gas used by each block out of all the possible paths.
+
+There are also certain tuneable hyperparameters that Mythril offers, such as a bound on the number of times a loop can be explored,
+as well as setting the states of storage variables in a smart contract and the global blockchain state. We would like to also expose
+these settings for the user, and allow a user to define the intial state used for symbolic execution to obtain a more accurate
+estimate.
+
+There are also other tools such as Oyente \cite{oyente} (and EthIR, an extension of it,) that are able to perform symbolic execution and produce a 
+control flow graph. However, when testing their capabilities, it was found that they were no longer actively maintained,
+and contained many errors that required patching before they worked. They also did not support the latest Solidity version, and were
+missing numerous newly introduced opcodes, such as SHR (shift right) and SHL (shift left).
+
+\section{Loop bounds inference}
+
+Finally, when symbolically executing a smart contract, we will likely run into the problem of path explosion. For large and complex smart
+contracts, the number of possible execution paths will grow exponentially with an increase in bytecode size. However, smart contracts
+are typically much simpler compared to executable desktop programs, because of the gas limit imposed by each block. They are also guaranteed
+to halt, either by successfully completing the execution, or by running out of gas. Even so, the number of paths that may need to be traversed
+before hitting the block gas limit may still be intractible, and require some heuristics for optimisation. Therefore, we propose to infer
+loop boundaries for simple loop patterns that can be evaluated statically, by extending the Solidity compiler that traverses the Yul intermediate
+representation.
+
+DERIVES_FROM (var) => sequence of parameters it derives from
+
+var := expr => DERIVES_FROM(var) = OP(expr)
+mstore(addr, expr) => DERIVES_FROM(m_addr_var) = OP(expr) // same for sstore
+
+if (expr) [statements] => OP(expr) ? 
+
+OP(func(expr,...)) = DERIVES_FROM(ret_var)
+OP(mload(addr)) = DERIVES_FROM(m_addr_var) // same for sload
+OP(sub(expr1, expr2)) = OP(expr1) - OP(expr2)
+
+OP(var) = DERIVES_FROM(var)
+OP(const) = const
+
+DERIVES_FROM(expr_30) = OP(lt(cleanup_t_uint256(expr_28), cleanup_t_uint256(expr_29)))
+  = OP(cleanup_t_uint256(expr_28)) < OP(cleanup_t_uint256(expr_29))
+  = OP(expr_28) < OP(expr_29)
+  = OP(_4) < OP(_5)
+  = OP(var_i_25) < OP(var_loopEndIndex_19)
+  = OP(var_i_25) < OP(expr_22)
+  = OP(var_i_25) < OP(expr_22)
+  = OP(var_i_25) < OP(checked_sub_t_uint256(expr_20, convert_t_rational_1_by_1_to_t_uint256(expr_21)))
+  = OP(var_i_25) < OP(expr_20) - OP(convert_t_rational_1_by_1_to_t_uint256(expr_21)))
+  = DERIVES_FROM(var_i_25) < OP(var_argument_15) - OP(expr_21))
+  = DERIVES_FROM(var_i_25) < OP(var_argument_15) - 0x01)
+  = FOR(var_i_25, OP(convert_t_rational_0_by_1_to_t_uint256(expr_26)), OP(_2)) < var_argument_15 - 0x01)
+  = FOR(var_i_25, OP(expr_26), OP(increment_t_uint256(_3))) < var_argument_15 - 0x01)
+  = FOR(var_i_25, 0x00, OP(increment_t_uint256(_3))) < var_argument_15 - 0x01)
+  = FOR(var_i_25, 0x00, OP(add(_3, 1))) < var_argument_15 - 0x01)
+  = FOR(var_i_25, 0x00, OP(_3) + OP(1)))) < var_argument_15 - 0x01)
+  = FOR(var_i_25, 0x00, OP(var_i_25) + 1))) < var_argument_15 - 0x01)
+
+  // until hit a cycle I guess?
+
+Then we know the number of times this will run =>
+var_argument_15 - 0x01 - (0 + n * 1) = 0
+var_argument_15 - 1 - n = 0
+n = var_argument_15 - 1
