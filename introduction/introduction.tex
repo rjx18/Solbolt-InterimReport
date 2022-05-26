@@ -103,16 +103,17 @@ The following summarises the intended contributions this project plans to achiev
       We also want to be able to generate the Yul intermediate representation for
       the Solidity code, which is a recently introduced language between Solidity
       and EVM assembly.
-    \item \textbf{Parametric static analysis of gas consumption for each EVM instruction}
+    \item \textbf{Analysis of gas consumption via symbolic execution for each EVM instruction}
     
       The schedule for gas consumption of EVM instructions is carefully laid out 
       in the Ethereum Yellow Paper \cite{ethereumyellowpaper}. Using this,
-      we want to conduct a static analysis of gas consumption for each line
-      of Solidity code, instead of simply at a function call level. To do this, we would
-      need to generate a control flow graph of EVM instructions for each function call, and then
-      calculate the worst-case gas bounds for each instruction. We would also like to
-      be able to infer parametric bounds for gas consumption instead of simply
-      constant bounds, and allow users to define these external parameters to obtain a 
+      we want to conduct an analysis of gas consumption for each line
+      of Solidity code, instead of simply at a function call level. To do this, we 
+      propose using symbolic execution to traverse each possible execution path, 
+      and then aggregating the gas costs for each basic block. 
+      To address the problem of path explosion, we also propose the implementation of a
+      non-iterative loop bounds analysis that can generate a parametric loop bound using
+      polytopes. Then, we can allow users to define these external parameters to obtain a 
       more precise estimate.
 
     \item \textbf{Generation of heatmaps of gas usage per line of code}
@@ -134,4 +135,14 @@ The following summarises the intended contributions this project plans to achiev
 
 \section{Outline of report}
 
-In Chapter 
+In Chapter \ref{chap:background}, we provide a summary of smart contracts on Ethereum, the internals of the
+Ethereum Virtual Machine and its gas schedule, as well as a background on Solidity and the 
+Yul intermediate representation. In Chapter \ref{chap:gasbounds}, we describe our proposed
+implementation to estimate gas costs using symbolic execution, and a non-iterative algorithm using
+polytopes to statically infer loop bounds. In Chapter \ref{chap:related}, we briefly examine two 
+related projects, as well as their results and limitations. In Chapter \ref{chap:eval}, we 
+propose the method we intend to measure the project's quality and effectiveness by. In 
+Chapter \ref{chap:ethics}, we examine the possible ethical issues that may arise from 
+this project. Finally, in Chapter \ref{chap:projplan}, we discuss the proposed timeline 
+for the completion of this project, including stretch goals and fallback goals under various
+circumstances.

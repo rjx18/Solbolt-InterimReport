@@ -1,4 +1,5 @@
-\chapter{Gas bounds analysis of EVM instructions}
+\chapter{Gas bounds analysis}
+\label{chap:gasbounds}
 
 Now that we understand the basics of the Ethereum blockchain as well as 
 the generation of EVM instructions from Solidity code, let us now examine
@@ -21,7 +22,7 @@ in apart from the first instruction, and no branches out apart from the last ins
 
 \begin{definition}[basic blocks]
 
-  \textit{Given an EVM program $P \equiv b_0,...,b_p$, we have}:
+  \textit{Given an EVM programme $P \equiv b_0,...,b_p$, we have}:
   \[
     blocks(P) \equiv \Bigg\{ B_i \equiv b_i,...,b_j \:\Bigg|\:
     \begin{aligned}
@@ -75,47 +76,447 @@ missing numerous newly introduced opcodes, such as SHR (shift right) and SHL (sh
 
 Finally, when symbolically executing a smart contract, we will likely run into the problem of path explosion. For large and complex smart
 contracts, the number of possible execution paths will grow exponentially with an increase in bytecode size. However, smart contracts
-are typically much simpler compared to executable desktop programs, because of the gas limit imposed by each block. They are also guaranteed
+are typically much simpler compared to executable desktop programmes, because of the gas limit imposed by each block. They are also guaranteed
 to halt, either by successfully completing the execution, or by running out of gas. Even so, the number of paths that may need to be traversed
 before hitting the block gas limit may still be intractible, and require some heuristics for optimisation. Therefore, we propose to infer
-loop boundaries for simple loop patterns that can be evaluated statically, by extending the Solidity compiler that traverses the Yul intermediate
-representation.
+loop boundaries for loop patterns that can be evaluated statically, by extending the Solidity compiler that traverses the abstract syntax tree of the 
+Yul intermediate representation. To our knowledge, no other existing tool performs this kind of
+static analysis on Yul IR.
 
-DERIVES_FROM (var) => sequence of parameters it derives from
+The method chosen is adapted from Lokuciejewski et al \cite{loopanalysis}, where they describe a non-iterative approach to analyse loop
+boundaries of certain loops that match their constraints. These constraints are that the exit conditions must either depend on a constant, 
+non-modified variable within the loop, or at most a single modified variable, and that all condition statements are affine expressions of variables.
+We can adopt a similar method for loops in the Yul language.
 
-var := expr => DERIVES_FROM(var) = OP(expr)
-mstore(addr, expr) => DERIVES_FROM(m_addr_var) = OP(expr) // same for sstore
+First, we take advantage of the fact that all computation on the EVM is deterministic. Therefore, any variable must either have been declared statically
+within the source code, or depends on a set of operations that acts on a finite set of parameters, such as the function arguments, or global parameters
+within the blockchain, such as the block number and timestamp. For our analysis, we transform any calls to external contracts into a parameter as well.
 
-if (expr) [statements] => OP(expr) ? 
+Then, we can define the following relationship for each variable $V$, and each time $n$ it is newly assigned to 
+(if $n$ is omitted, assume we are retrieving the last assignment):
 
-OP(func(expr,...)) = DERIVES_FROM(ret_var)
-OP(mload(addr)) = DERIVES_FROM(m_addr_var) // same for sload
-OP(sub(expr1, expr2)) = OP(expr1) - OP(expr2)
+\begin{dmath}
+  DerivesFrom(V: \texttt{Var}, n: \texttt{Const?}): \texttt{Expr} \equiv
+  \begin{cases}
+    \texttt{Unknown} \\
+    \texttt{Const} \\
+    \texttt{Var}, n'   \\
+    Induct(\texttt{Var}) \\
+    BinOp(left: \texttt{Expr},right: \texttt{Expr}) \\
+    If(cond: \texttt{Expr}, branchTrue: \texttt{Expr}, branchFalse: \texttt{Expr})
+    % Loop(start: \texttt{Expr}, op: \texttt{Expr}, numLoops: \texttt{Expr})
+  \end{cases}
+\end{dmath}
 
-OP(var) = DERIVES_FROM(var)
-OP(const) = const
+This relationship helps us identify how a variable is calculated at each point in the programme. Next,
+for each expression in a Yul programme, we also have the following operator $Op$:
 
-DERIVES_FROM(expr_30) = OP(lt(cleanup_t_uint256(expr_28), cleanup_t_uint256(expr_29)))
-  = OP(cleanup_t_uint256(expr_28)) < OP(cleanup_t_uint256(expr_29))
-  = OP(expr_28) < OP(expr_29)
-  = OP(_4) < OP(_5)
-  = OP(var_i_25) < OP(var_loopEndIndex_19)
-  = OP(var_i_25) < OP(expr_22)
-  = OP(var_i_25) < OP(expr_22)
-  = OP(var_i_25) < OP(checked_sub_t_uint256(expr_20, convert_t_rational_1_by_1_to_t_uint256(expr_21)))
-  = OP(var_i_25) < OP(expr_20) - OP(convert_t_rational_1_by_1_to_t_uint256(expr_21)))
-  = DERIVES_FROM(var_i_25) < OP(var_argument_15) - OP(expr_21))
-  = DERIVES_FROM(var_i_25) < OP(var_argument_15) - 0x01)
-  = FOR(var_i_25, OP(convert_t_rational_0_by_1_to_t_uint256(expr_26)), OP(_2)) < var_argument_15 - 0x01)
-  = FOR(var_i_25, OP(expr_26), OP(increment_t_uint256(_3))) < var_argument_15 - 0x01)
-  = FOR(var_i_25, 0x00, OP(increment_t_uint256(_3))) < var_argument_15 - 0x01)
-  = FOR(var_i_25, 0x00, OP(add(_3, 1))) < var_argument_15 - 0x01)
-  = FOR(var_i_25, 0x00, OP(_3) + OP(1)))) < var_argument_15 - 0x01)
-  = FOR(var_i_25, 0x00, OP(var_i_25) + 1))) < var_argument_15 - 0x01)
+\addfunctions{Let}
 
-  // until hit a cycle I guess?
+\begin{dmath}
+  Op(e: \texttt{Expr}): \texttt{Expr} \equiv
+  \begin{cases}
+    \texttt{Const} & \text{if $e$ is type \texttt{Const}} \\
+    e & \text{if $e$ is type \texttt{Var} and $DerivesFrom(e)$ does not exist} \\
+    DerivesFrom(e) & \text{if $e$ is type \texttt{Var} and $DerivesFrom(e)$ exists} \\
+    DerivesFrom(retVar) & \text{if $e$ is $Func(Args)$ returns $retVar$} \\
+    BinOp(Op(left), Op(right)) & \text{if $e$ is $BinOp(left, right)$} \\
+    newExtVar & \text{if $e$ is a call to an external function}
+  \end{cases}
+\end{dmath}
 
-Then we know the number of times this will run =>
-var_argument_15 - 0x01 - (0 + n * 1) = 0
-var_argument_15 - 1 - n = 0
-n = var_argument_15 - 1
+This relationship applies and simplifies each operation into the simplest $DerivesFrom$ relationship possible.
+Then, we walk the abstract syntax tree for the Yul IR using the pseudocode in the following subsections, 
+which can be done at the same time as EVM code compilation.
+
+\subsection{Assignment statements}
+
+For assignment statements, we simply call the $Op$ operator on the expression,
+in order to simplify it into a $DerivesFrom$ relationship of constants, operators and 
+parameters, which we push to the current $DerivesFrom$ data structure.
+
+\begin{sflisting}
+  procedure Walk(DerivesFrom, [s : s_tail], LoopConstraints)
+    switch s
+      case s matches (LET v := expr)
+        DerivesFrom.push(v, Op(expr))
+        Walk(DerivesFrom, Conds, s_tail, LoopConstraints)
+  end procedure 
+\end{sflisting}
+
+For example, say we have the following Yul function:
+\begin{sflisting}
+  function fun_simpleLoop_39(var_argument_11) {
+    let _1 := var_argument_11
+    let expr_16 := _1
+    let expr_17 := 0x01
+    let expr_18 := add(expr16, expr_17)
+}
+\end{sflisting}
+
+Then, we obtain the following $DerivesFrom$ relationships:
+\[
+  \begin{aligned}
+    DerivesFrom(\texttt{_1}) &\equiv Op(\texttt{var_argument_11}) \\
+                             &\equiv \texttt{var_argument_11} \\
+  \end{aligned}
+\]
+\[
+  \begin{aligned}
+    DerivesFrom(\texttt{expr_16}) &\equiv Op(\texttt{_1}) \\
+                             &\equiv DerivesFrom(\texttt{_1}) \\
+                             &\equiv \texttt{var_argument_11} \\
+  \end{aligned}
+\]
+\[
+  \begin{aligned}
+    DerivesFrom(\texttt{expr_17}) &\equiv Op(\texttt{0x01}) \\
+                             &\equiv \texttt{0x01} \\
+  \end{aligned}
+\]
+\[
+  \begin{aligned}
+    DerivesFrom(\texttt{expr_18}) &\equiv Op(add(\texttt{expr16}, \texttt{expr_17})) \\
+                             &\equiv add(Op(\texttt{expr16}), Op(\texttt{expr_17})) \\
+                             &\equiv add(DerivesFrom(\texttt{expr_16}), DerivesFrom(\texttt{expr_17})) \\
+                             &\equiv add(\texttt{var_argument_11}, \texttt{0x01}) \\
+  \end{aligned}
+\]
+
+\subsection{If statements}
+
+For if statements, we first simplify the condition using the $Op$ operator, and then clone the
+current $DerivesFrom$ struct. We then use the cloned struct to walk the true branch of the if statement.
+In Yul, there are no else statements, so control flow returns to the original programme point before the branch.
+
+Then, we iterate through the variables within the $DerivesFrom$ struct of the upper scope, and then check if
+they have been modified by the if branch. If they have, we push an If expression as the variable's $DerivedFrom$
+relationship, with the simplified condition obtained before.
+
+\begin{sflisting}
+  procedure Walk(DerivesFrom, [s : s_tail], LoopConstraints)
+    switch s
+      case s matches (IF (c) {if_stats})
+        // Create new scope
+        DerivesFrom_ = DerivesFrom.clone()
+        c_ = Op(c)
+        Walk(DerivesFrom_, if_stats)
+
+        // For variables in upper scope
+        for v in DerivesFrom do
+          v_prev = DerivesFrom.pop(v)
+          v_if = DerivesFrom_.get(v)
+          if (v_prev != v_if)
+            DerivesFrom.push(v, If(c_, v_if, v_prev))
+        Walk(DerivesFrom, Conds, s_tail, LoopConstraints)
+  end procedure 
+\end{sflisting}
+
+\subsection{For loop statements}
+
+Finally, for loops, we have to first check if certain constraints are met before we are able to analyse it statically.
+The constraints we have for loops that can be statically analysed are:
+\begin{enumerate}
+  \item There is only one induction variable for each loop.
+  \item The induction variable can only be initialised to a constant variable, or an affine expression of another previous
+        induction variable from a previous loop
+  \item The loop condition can only depend on this induction variable and other constants or variables that remain unchanged
+  \item The induction variable can only be modified within the post-loop header, and not anywhere else in the body
+  \item The induction variable must be modified by a constant or a variable that remains unchanged
+\end{enumerate}
+
+To enforce these constraints, we first obtain a set of all variables that are modified within the pre- and post-loop
+headers, as well as the loop body. We check that any variables set in the pre-loop header are not \texttt{Unknown} (which means they
+were modified within a previous outer loop), and that they are either constant or an affine expression of an $Induction(\texttt{Var})$
+from an outer loop.
+
+Then, we obtain a set of all loop conditions, by first including the condition
+within the loop header, and then traversing the loop body to find any break statements, and then including the
+conditions needed to reach it. After that, we extract all the variables involved in the loop conditions.
+
+Next, we check for the intersection of variables modified in the pre- and post-loop headers and involved in
+the loop conditions. There should only be one variable left, which will be our induction variable. We then check
+that the induction variable as well as the other variables involved in the loop conditions are not modified anywhere 
+else within the loop body.
+
+If the constraints are satisfied, we can analyse the loop using the induction variable and the mutations performed on it,
+described in a later section, to obtain a set of loop constraints. These are passed on when walking the inner loop body,
+so that they can be composed with any nested loops. We then create a new $DerivesFrom$ struct for the inner loop scope, 
+and push an \texttt{Unknown} value for the $DerivesFrom$ relationship of any variables modified within the loop. For the 
+induction variable, we push a special $Induction(\texttt{Var})$ variable to note that it is an induction variable. We now walk
+the inner loop bodies in the same way.
+
+If the constraints are not satisfied, we simply exit the loop altogether, because any nested loops will also not be analysable.
+In these cases, we will need to fallback into using symbolic execution with a bound on loop unfolding.
+
+Finally, when exiting the loop, we append fresh variables to any of the variables that were modified within the loop. This
+may be improved on in the future for variables that meet certain constraints, where we can statically derive their final 
+values as another $DerivesFrom$ relationship between the number of loop invocations and previously defined variables.
+
+\begin{sflisting}
+  procedure Walk(DerivesFrom, [s : s_tail], LoopConstraints)
+    switch s
+      case s matches (FOR (pre) (c) (post) (loop))
+        // Checks if loop can be analysed
+        canBeAnalysed = True
+
+        loopHeaderVars = new Set()
+        // Check loop header assignments
+        // These must be either constant, or 
+        // set to an affine expression of one induction variable
+        DF_Pre = emptyDerivesFrom()
+        Walk(DF_Pre, pre)
+        for v in DF_Pre
+          if (DF_Pre.get(v) is not Unknown and is affine)
+            loopHeaderVars.insert(v)
+
+        modifiedPostVariables = new Set()
+        // Find possible induction variables in post
+        DF_Post = emptyDerivesFrom()
+        Walk(DF_Post, post)
+        for v in DF_Post
+          modifiedPostVariables.insert(v)
+
+        loopCondsVariables = new Set()
+        // Find loop conditions, 
+        // and get the set of variables they derive from
+        v, conds = findVars(c)
+        v_, conds_ = findBreakCondVars(loop)
+        loopConditions = unionConds(conds, conds_)
+        loopCondsVariables.insert(v ++ v_)
+
+        inductionVars = intersect(loopHeaderVars, modifiedPostVariables, loopCondsVariables)
+
+        modifiedLoopVariables = new Set()
+        // Find variables modified within a loop
+        modifiedLoopVariables = findModifiedLoopVars(loop)
+
+        // check if can be analysed
+        if inductionVars.length != 1 or !disjoint(loopCondsVariables, modifiedLoopVariables)
+          canBeAnalysed = False
+
+        // If loop cannot be analysed, then any nested
+        // loops also cannot be analysed, so we skip them
+        if canBeAnalysed
+          inductionVar = inductionVars[0]
+
+          // Get loop constraints
+          LoopConstraints_ = calculateLoopBounds(inductionVars[0], DF_Pre, DF_Post, LoopConstraints)
+          logConstraints(LoopConstaints_)
+
+          // Create new DerivesFrom and walk loop body
+          // Induction variable is set to special value 
+          // composition with nested loops
+          DF_Loop = union(DF_Pre, DerivesFrom)
+
+          DF_Loop.push(inductionVars[0], getNewInductionVar(inductionVars[0]))
+          for v in modifiedLoopVariables
+            DF_Loop.push(v, Unknown)
+          
+          Walk(DF_Loop, loop, LoopConstaints_)
+
+        // Push new fresh variables for each variable modified 
+        // in loop, continue with rest of control flow
+        for v in modifiedLoopVariables
+          DerivesFrom.push(v, getNewVar())
+        
+        Walk(DerivesFrom, Conds, s_tail, LoopConstraints)
+  end procedure 
+\end{sflisting}
+
+Although these constraints seem rather strict, we observe that they are often satisfied by many well-formed Yul programmes.
+This is partly because of the gas constraints when developing in Solidity, and therefore complex loops are not often used 
+by developers.
+
+\subsection{Loop constraint polytopes}
+
+Next, in order to infer loop bounds as a parametric equation, the \texttt{calculateLoopBounds} will output a number of 
+constraints in the form of a \textit{polyhedron}, which is an N-dimensional geometrical object defined by a set of linear
+inequalities \cite{loopanalysis}:
+
+\begin{definition}[polyhedrons]
+
+  \textit{An $N$-dimensional polyhedron $P$ is defined by}:
+  \[
+    P := \{ x \in \mathbb{Z}^N | Ax = a, Bx \geq b \}
+  \]
+
+  \textit{where $A, B \in \in \mathbb{Z}^{m \times N}$ and $a, b \in \mathbb{Z}^m$ and $m \in \mathbb{N}$.}
+
+\end{definition}
+
+In our case, the constraints are also \textit{polytopes}, since we have $|P| < \infty$. To obtain this,
+we construct the first inequality with the initial value the induction variable is set to, and check to see
+if it is incremented or decremented in each loop body. Assuming it is set to $a$ initially and incremented each time, 
+we have for induction variable $i$ that $i \geq a$. 
+
+Then, for each of the loop conditions acting on $i$, we normalise them and derive another set of inequalities. For example,
+if the loop continues on the condition that $i < b$, and breaks when $i == c$, we then have $i < b$, $i < c$ and $i > c$ as additional
+inequalities. We can then find the smallest intersection between all of these inequalities, which is parameterised by $a$, $b$ and $c$,
+and the loop bounds can be derived from there together with the amount that the induction variable is incremented or decremented by.
+These parameters can then be defined by the user arbitrarily, and the loop bounds can be recalculated directly without needing to
+re-compute the loop analysis.
+
+In the case of nested loops, the previous loop constraits from the outer loop can be included together with the constraints of the
+current loop. For example, say the loop described previously had an inner loop with the inequalities $j > 2 \times i + 1$, $j < d$. Then, we
+can perform a similar intersection, this time in 2 dimensions instead of just 1, as visualised in Figure \ref{fig:polytopes}.
+Each loop execution is also marked with a dot within the shaded intersection area.
+
+\begin{figure}[!h]
+  \centering
+  \caption{Polytope calculated for a nested loop}
+  \label{fig:polytopes}
+  \begin{tikzpicture}
+    \begin{axis}[
+      xmin=-1, xmax=7,
+      ymin=-1, ymax=12,
+      axis lines=middle,
+      xlabel=$i$,
+      ylabel=$j$,
+    ]  
+    % \addplot[color=red]{15};
+      \addplot +[red, mark=none, name path=A] coordinates {(4, -1) (4, 12)} node[right,pos=0.5] {$i < b$};
+      \addplot +[red, mark=none, name path=B] coordinates {(6, -1) (6, 12)} node[right,pos=0.5] {$i < c$};
+      \addplot +[red, mark=none, name path=C] coordinates {(1, -1) (1, 12)} node[left,pos=0.6] {$i \geq a$};
+      \addplot +[blue, mark=none, name path=D] coordinates {(-1, -1) (6, 13)} node[right,pos=0.35] {$j \geq 2 \times i + 1$};
+      \addplot +[blue, mark=none, name path=E] coordinates {(-1, 10) (7, 10)} node[above,pos=0.4] {$j < d$};
+      \path[name path=xaxis] (\pgfkeysvalueof{/pgfplots/xmin}, 0) -- (\pgfkeysvalueof{/pgfplots/xmax},0);
+      \addplot[gray, pattern=north west lines, opacity=0.5] fill between[of=D and E, soft clip={domain=1:4}];
+      \addplot [only marks] table {
+      1   3
+      1   4
+      1   5
+      1   6
+      1   7
+      1   8
+      1   9
+      2   5
+      2   6
+      2   7
+      2   8
+      2   9
+      3   7
+      3   8
+      3   9
+      };
+    \end{axis}
+  \end{tikzpicture}
+\end{figure}
+
+This information can then be output as debug metadata in the final EVM assembly.
+The final step involves making use of the mapping from Yul IR to the generated EVM assembly. 
+We can modify the symbolic execution engine to read the debug metadata for each tag generated from the Yul IR.
+
+Then, instead of relying on symbolic execution, if the user specified concrete values
+for the paramters involved, we can calculate the loop bounds directly, and estimate the gas cost as the
+cost for running the block once, multiplied by the number of times the loop is executed.
+
+\subsection{Abstract Interpretation}
+
+An alternative method we can use is Abstract Interpretation via the interval domain, similar to the original implementation in \cite{loopanalysis}.
+This method iteratively calculates at every programme point, the interval of values each variable can take at each programme point.
+Then, programme slicing and a similar polytope analysis is carried out for loops that meet certain constraints, before deriving the
+final loop bounds. 
+
+This method is more involved in that it requires a control flow graph to be produced before any analysis
+can take place. In addition, it does not output a parametric solution, so therefore the analysis process needs to be repeated for 
+each time the user specifies new values for the function parameters. However, it has the advantage that the user does not need to specify
+concrete values, but can also specify a range of values each function parameter can take at the function entry point.
+
+% \begin{lstlisting}
+%   data Expr = 
+%     int | 
+%     Var | 
+%     BinOp (Expr) (Expr) | 
+%     Loop (Expr) (Expr) (Expr)
+
+%   DerivesFrom(V, n) => (Expr, Cond)
+
+% \end{lstlisting}
+
+% Then, we can use the following pseudocode to calculate the DerivesFrom relationships for each variable, for Yul programme $P \equiv [s_0 : s_{tail}]$:
+
+% \begin{lstlisting}
+% eval(derives_from_struct, conditions, [s_0: s_tail], loop_break_conditions?) {
+%   switch (s_0) {
+%     case s_0 matches var := expr {
+%       pushDerivesFrom(derives_from_struct, var, op(expr), conditions)
+%       eval(derives_from_struct, conditions, s_tail)
+%     }
+
+%     case s_0 matches if (expr) {if_statements} {
+%       conditions.push(op(expr))
+%       eval(derives_from_struct, conditions, s_tail)
+%       conditions.pop()
+%     }
+
+%     case s_0 matches for {pre_loop_statements} cond {post_loop_statments} {loop_statements} {
+%       eval(derives_from_struct, conditions, pre_loop_statements)
+
+%       D = emptyDerivesFrom()
+
+%       # calculates what mutations are done on variables within a loop
+%       mutations = []
+
+%       loop_break_conditions = cond
+
+%       conditions.push(cond)
+
+%       # evaluate one invocation of a loop to find derives from relationships
+%       eval(D, conditions, loop_statements)
+
+
+
+%     }
+
+%     case s_0 matches break {
+%       assert (loop_break_conditions)
+
+%       # if there is a break, we append the current list of conditions into the loop break conditions list
+%       loop_break_conditions.push(conditions)
+%     }
+%   }
+% }
+
+% \end{lstlisting}
+
+% DERIVES_FROM (var) => sequence of parameters it derives from
+
+% eval(var := expr, statements) => DERIVES_FROM(var) = OP(expr), eval(statements)
+% eval(mstore(addr, expr), statements) => DERIVES_FROM(m_addr_var) = OP(expr), eval(statements) // same for sstore
+
+% eval(if (expr) [if_statements], statements) => IF(OP(expr), eval([if_statements]), eval(statements)
+
+% eval(switch(expr)) => construct blocks for each branch, return to previous flow
+
+% OP(func(expr,...)) = DERIVES_FROM(ret_var)
+% OP(mload(addr)) = DERIVES_FROM(m_addr_var) // same for sload
+% OP(sub(expr1, expr2)) = OP(expr1) - OP(expr2)
+
+% OP(var) = DERIVES_FROM(var)
+% OP(const) = const
+
+% DERIVES_FROM(expr_30) = OP(lt(cleanup_t_uint256(expr_28), cleanup_t_uint256(expr_29)))
+%   = OP(cleanup_t_uint256(expr_28)) < OP(cleanup_t_uint256(expr_29))
+%   = OP(expr_28) < OP(expr_29)
+%   = OP(_4) < OP(_5)
+%   = OP(var_i_25) < OP(var_loopEndIndex_19)
+%   = OP(var_i_25) < OP(expr_22)
+%   = OP(var_i_25) < OP(expr_22)
+%   = OP(var_i_25) < OP(checked_sub_t_uint256(expr_20, convert_t_rational_1_by_1_to_t_uint256(expr_21)))
+%   = OP(var_i_25) < OP(expr_20) - OP(convert_t_rational_1_by_1_to_t_uint256(expr_21)))
+%   = DERIVES_FROM(var_i_25) < OP(var_argument_15) - OP(expr_21))
+%   = DERIVES_FROM(var_i_25) < OP(var_argument_15) - 0x01)
+%   = FOR(var_i_25, OP(convert_t_rational_0_by_1_to_t_uint256(expr_26)), OP(_2)) < var_argument_15 - 0x01)
+%   = FOR(var_i_25, OP(expr_26), OP(increment_t_uint256(_3))) < var_argument_15 - 0x01)
+%   = FOR(var_i_25, 0x00, OP(increment_t_uint256(_3))) < var_argument_15 - 0x01)
+%   = FOR(var_i_25, 0x00, OP(add(_3, 1))) < var_argument_15 - 0x01)
+%   = FOR(var_i_25, 0x00, OP(_3) + OP(1)))) < var_argument_15 - 0x01)
+%   = FOR(var_i_25, 0x00, OP(var_i_25) + 1))) < var_argument_15 - 0x01)
+
+%   // until hit a cycle I guess?
+
+% Then we know the number of times this will run =>
+% var_argument_15 - 0x01 - (0 + n * 1) = 0
+% var_argument_15 - 1 - n = 0
+% n = var_argument_15 - 1

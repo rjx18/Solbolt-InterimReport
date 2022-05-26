@@ -1,4 +1,5 @@
 \chapter{Background}
+\label{chap:background}
 
 \section{The Ethereum Blockchain}
 
@@ -45,31 +46,32 @@ The Ethereum blockchain is one of the first widely successful and adopted execut
 smart contracts. Due to the decentralised and tamper-resistant properties of Ethereum, 
 smart contracts deployed on Ethereum can operate as autonomous actors \cite{smartcontractsforiot},
 whose behaviours are completely deterministic and verifiable. Christidis et al also likens them to 
-stored procedures in a relational database \cite{smartcontractsforiot}. As an example, consider the
-following smart contract for a simple sale of a token X:
+stored procedures in a relational database \cite{smartcontractsforiot}. 
+% As an example, consider the
+% following smart contract for a simple sale of a token X:
 
-\begin{enumerate}
-  \item Alice wants to sell, for example, 10 X tokens (in this case they could be non-fungible
-  tokens). She writes a buy token function, that accepts 5 Y tokens for each X token sold,
-  and then automatically transfers the correct number of X tokens to the buyer's address.
-  \item Bob wants to purchase 2 X tokens. He can then submit a transaction calling the 
-  buy token function, with 10 Y tokens from his own account balance. The smart contract will
-  then execute, and Bob will automatically receive 2 X tokens once the transaction is complete.
-  Bob does not need to worry if Alice will honour her part of the contract, because the
-  exchange is atomic and coded within the smart contract itself.
-  \item Alice can then withdraw the amount of Y tokens she received from the sale, by calling 
-  a withdraw profit function. This function would also check that the caller matches Alice's
-  preset address, so that no one else is able to steal her profit.
-  \item The smart contract can also keep track of the number of X tokens sold, such that 
-  sales will revert after the limit of 10 is reached. It can also automatically revert the 
-  transaction if the wrong amount of Y tokens are sent, or even refund Bob the correct amount 
-  if he sends too many Y tokens.
-\end{enumerate}
+% \begin{enumerate}
+%   \item Alice wants to sell, for example, 10 X tokens (in this case they could be non-fungible
+%   tokens). She writes a buy token function, that accepts 5 Y tokens for each X token sold,
+%   and then automatically transfers the correct number of X tokens to the buyer's address.
+%   \item Bob wants to purchase 2 X tokens. He can then submit a transaction calling the 
+%   buy token function, with 10 Y tokens from his own account balance. The smart contract will
+%   then execute, and Bob will automatically receive 2 X tokens once the transaction is complete.
+%   Bob does not need to worry if Alice will honour her part of the contract, because the
+%   exchange is atomic and coded within the smart contract itself.
+%   \item Alice can then withdraw the amount of Y tokens she received from the sale, by calling 
+%   a withdraw profit function. This function would also check that the caller matches Alice's
+%   preset address, so that no one else is able to steal her profit.
+%   \item The smart contract can also keep track of the number of X tokens sold, such that 
+%   sales will revert after the limit of 10 is reached. It can also automatically revert the 
+%   transaction if the wrong amount of Y tokens are sent, or even refund Bob the correct amount 
+%   if he sends too many Y tokens.
+% \end{enumerate}
 
-Smart contracts can therefore be used to describe any arbitrary contractual agreement,
-and be used in applications such as voting and governance \cite{ethdao}, 
-peer-to-peer marketplaces \cite{opensea}, 
-collateralised borrowing platforms \cite{aave} \cite{compound}, or even NFT ticketing \cite{getprotocol} \cite{tkets}.
+% Smart contracts can be used to describe any arbitrary contractual agreement,
+% and be used in applications such as voting and governance \cite{ethdao}, 
+% peer-to-peer marketplaces \cite{opensea}, 
+% collateralised borrowing platforms \cite{aave} \cite{compound}, or even NFT ticketing \cite{getprotocol} \cite{tkets}.
 It is important to note that smart contracts must be completely deterministic in nature, 
 or else each node in the decentralised network will output different resulting (but valid) states.
 
@@ -128,6 +130,7 @@ deeper within the stack without first removing the top elements, or without movi
 into memory or storage first.
 
 \subsection{Gas consumption}
+\label{evm:gas}
 Gas refers to the "the unit that measures the amount of computational effort required 
 to execute specific operations on the Ethereum network" \cite{ethgas}. It is the fee
 that is paid in Ether in order to successfully submit and execute a transaction 
@@ -384,3 +387,82 @@ the mapping to the original source code. This can be very useful for understandi
 final EVM assembly operates, as seen in our previous example. As such, it would be
 interesting to generate a similar mapping for this project to the Yul intermediate
 representation, in addition to the final EVM assembly.
+
+Performing analysis on the Yul IR also has the advantage over Solidity code that it 
+reveals certain \textit{"hidden loops"} when dealing with variable sized data types 
+like \texttt{string} and \texttt{bytes}. For example, observe the following Solidity function:\\
+
+\begin{lstlisting}[language=Solidity, caption={Where is the a loop within this contract?}, label={lst:sol_hiddenloop}, basicstyle=\ttfamily\scriptsize]
+  pragma solidity >=0.7.0 <0.9.0;
+  contract TestLoop {
+      string private storedString;
+      constructor() {}
+
+      function hiddenLoop(string calldata newString) external {
+          storedString = newString;
+      }
+  }
+\end{lstlisting}
+
+Upon first examination, there seem to be no loops involved in the \texttt{hiddenLoop} function. However,
+as it assigns a variable data type \texttt{string}, a loop may be generated automatically for this by the 
+Solidity compiler, but is not apparent within the Solidity code itself. Looking at the Yul code however,
+this "hidden" loop is more explicit:\\
+
+\begin{lstlisting}[language=plantuml, caption={Yul IR that reveals the hidden loop}, label={lst:solcexp}, basicstyle=\ttfamily\scriptsize]
+  function copy_byte_array_to_storage_from_t_string_calldata_ptr_to_t_string_storage(slot, src, len) {
+      let newLen := array_length_t_string_calldata_ptr(src, len)
+      // Make sure array length is sane
+      if gt(newLen, 0xffffffffffffffff) { panic_error_0x41() }
+
+      let oldLen := extract_byte_array_length(sload(slot))
+
+      // potentially truncate data
+      clean_up_bytearray_end_slots_t_string_storage(slot, oldLen, newLen)
+
+      let srcOffset := 0
+
+      switch gt(newLen, 31)
+      case 1 {
+          let loopEnd := and(newLen, not(0x1f))
+
+          let dstPtr := array_dataslot_t_string_storage(slot)
+          let i := 0
+          for { } lt(i, loopEnd) { i := add(i, 0x20) } {
+              sstore(dstPtr, calldataload(add(src, srcOffset)))
+              dstPtr := add(dstPtr, 1)
+              srcOffset := add(srcOffset, 32)
+          }
+          if lt(loopEnd, newLen) {
+              let lastValue := calldataload(add(src, srcOffset))
+              sstore(dstPtr, mask_bytes_dynamic(lastValue, and(newLen, 0x1f)))
+          }
+          sstore(slot, add(mul(newLen, 2), 1))
+      }
+      default {
+          let value := 0
+          if newLen {
+              value := calldataload(add(src, srcOffset))
+          }
+          sstore(slot, extract_used_part_and_set_length_of_short_byte_array(value, newLen))
+      }
+  }
+
+  function fun_hiddenLoop_17(var_newString_9_offset, var_newString_9_length) {
+
+      let _1_offset := var_newString_9_offset
+      let _1_length := var_newString_9_length
+      let expr_13_offset := _1_offset
+      let expr_13_length := _1_length
+      copy_byte_array_to_storage_from_t_string_calldata_ptr_to_t_string_storage(0x00, expr_13_offset, expr_13_length)
+      let _2_slot := 0x00
+      let expr_14_slot := _2_slot
+
+  }
+ \end{lstlisting}
+
+ Here, we see that the string is rather represented as an offset into the calldata and its length in line 39.
+ Then, we see that our hiddenLoop function calls the "copy byte array to storage" function in line 45.
+ This function then has a switch statement in line 13, and if the length of the string is greater than 32 bytes,
+ it is stored using a for loop in line 19, where the first 32 byte word stores the length of the string,
+ and the following words store the actual contents itself.

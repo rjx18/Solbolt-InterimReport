@@ -1,0 +1,32 @@
+\chapter{Project Plan}
+\label{chap:projplan}
+
+As of the writing of this report, the following foundational steps have been
+completed:
+\begin{itemize}
+  \item Testing of the Solidity compiler for its capabilities and scope of debug logs emitted
+  \item Testing of various symbolic execution engines (Mythril and Oyente) to investigate their capabilities
+  \item Creation of a basic web application that is able to decompile a Solidity contract using the javascript Solidity compiler
+  \item Research on previous gas estimation techniques for EVM, as well as various loop bounds analysis methods for symbolic execution
+\end{itemize}
+
+Moving forward, the plan for the project is as follows:
+\begin{enumerate}
+  \item Building the compilation pipeline for the basic web app that automatically compiles Solidity code into both EVM and Yul IR. \textbf{Suggested timeline: 1.5 weeks (31 Jan - 9 Feb)}
+  \item Development of the mapping feature that allows compiled EVM and Yul code to be mapped to the corresponding Solidity code. \textbf{Suggested timeline: 1.5 weeks (10 Feb - 21 Feb)}
+  \item Extending the Mythril symbolic execution engine to provide aggregate gas estimates for each basic block. \textbf{Suggested timeline: 2 weeks (22 Feb - 7 Mar)}
+  \item Development of the heatmap feature that takes the gas estimates calculated and displays it in a heat map, on top of the compiled EVM and Yul IR. \textbf{Suggested timeline: 2 weeks (7 Mar - 21 Mar)}
+  \item Extension of the Solidity Yul compiler with our loop analysis algorithm, to emit parametric loop bounds within the output EVM. \textbf{Suggested timeline: 3 weeks (21 Mar - 11 Apr)}
+  \item Extension of web app to take into account the emitted parametric loop bounds during gas estimate calculation. \textbf{Suggested timeline: 1.5 weeks (14 Apr - 21 Apr)}
+  \item \textit{(Stretch)} Development of a symbolic debugger using the Mythril engine, that allows the user to step through an execution and examine the values within the stack, the programme counter, and the gas used. \textbf{Suggested timeline: 4 weeks}
+  \item \textit{(Fallback)} Development of a feature that builds and displays the control flow graph for both Yul and EVM bytecode \textbf{Suggested timeline: 2 weeks}
+  \item Conduct evaluation on the web application, and collect user feedback \textbf{Suggested timeline: 2 weeks (10 May - 24 May)}
+  \item Writing of draft report, and meet with supervisor \textbf{Suggested timeline: 2 weeks (24 May - 7 Jun)}
+  \item Finalise report and create and rehearse for final presentation \textbf{Suggested timeline: 2 weeks (7 Jun - 20 Jun)}
+\end{enumerate}
+
+For items 5 and 6, if it is found to be unable to achieve the stated goal in time, or if the previous
+steps take longer than expected, the project will fallback into developing step 8 instead, which
+should be more manageable to complete. If the project goes very well and there is extra time left,
+we will focus on developing step 7, which would be an additional (but useful) feature for the tool.
+We have also included 2 weeks of buffer time for courseworks and examinations.

@@ -26,6 +26,7 @@
 \usepackage{url} % URLs
 \usepackage[english]{babel}
 \usepackage{amsmath}
+\usepackage{amsfonts}
 \usepackage{graphicx}
 \usepackage{dsfont}
 \usepackage{epstopdf} % automatically replace .eps with .pdf in graphics
@@ -40,6 +41,12 @@
 \usepackage{listings}
 \usepackage{xcolor}
 \usepackage{amsthm}
+\usepackage{breqn}
+\usepackage{pgfplots}
+\usepgfplotslibrary{fillbetween}
+\usetikzlibrary{patterns}
+
+\pgfplotsset{width=10cm,compat=1.9}
 
 \hypersetup{pdftitle={},
   pdfsubject={}, 
@@ -210,3 +217,21 @@
 
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}[section]
+
+\lstnewenvironment{sflisting}{\lstset{
+  basicstyle=\footnotesize\ttfamily,
+  backgroundcolor=\color{white},
+  numbers=none
+  }}{}
+
+  \newcommand\addkeywords[1]{%
+  \lstset{morekeywords=[1]{#1}}}
+
+\newcommand\addoperators[1]{%
+  \lstset{morekeywords=[2]{#1}}}
+
+\newcommand\addtypes[1]{%
+  \lstset{morekeywords=[3]{#1}}}
+
+\newcommand\addfunctions[1]{%
+  \lstset{morekeywords=[4]{#1}}}
